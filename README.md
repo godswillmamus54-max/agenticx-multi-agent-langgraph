@@ -1,8 +1,10 @@
 # Multi-Agent Research Workflow with LangGraph
 
-A stateful multi-agent workflow that coordinates a **Planner**, **Worker**, and **Reviewer** using LangGraph.
+A stateful multi-agent workflow that coordinates a Planner, Worker, and Reviewer using LangGraph.
 
-The workflow demonstrates explicit shared state, conditional routing, reviewer-driven revision, bounded retries, and terminal escalation after two consecutive reviewer rejections.
+The workflow demonstrates explicit shared state, conditional routing, reviewer-driven revision, bounded retries, structured review decisions, and terminal escalation after two consecutive reviewer rejections.
+
+This project was developed as the **Multi-Agent Workflow with LangGraph** project for the **AgenticX AI Labs AI Agents & Automation internship**.
 
 ---
 
@@ -26,7 +28,7 @@ REVIEWER
   |
   +--------------------+
   |                    |
-  | APPROVED           | REJECTED
+  | APPROVED            | REJECTED
   v                    v
 FINISH          rejection_count < 2
   |                    |
@@ -43,12 +45,12 @@ FINISH          rejection_count < 2
                     FINISH            rejection_count >= 2
                                             |
                                             v
-                                        ESCALATE
+                                         ESCALATE
                                             |
                                             v
                                            END
+The workflow is intentionally bounded so that repeated reviewer rejection cannot create an infinite agent loop.
 
-        The workflow is intentionally bounded so that repeated reviewer rejection cannot create an infinite agent loop.
 Project Goals
 The project demonstrates:
 - Multi-agent coordination with LangGraph
@@ -61,6 +63,7 @@ The project demonstrates:
 - Terminal escalation
 - Deterministic integration testing
 - LLM-backed production nodes
+- Reproducible workflow demonstrations
 Architecture
 Planner
 The Planner receives the original user task and converts it into an ordered execution plan.
@@ -111,7 +114,7 @@ class WorkflowState(TypedDict):
     final_output: str
 
 
-State fields
+State Fields
 Field	Purpose
 task	Original user request
 plan	Ordered execution plan produced by Planner
@@ -131,23 +134,26 @@ Approved
 If:
 review_status == "approved"
 
+
 the workflow routes to:
 FINISH → END
 
 The approved Worker draft becomes the final output.
-First rejection
+First Rejection
 If:
 review_status == "rejected"
 rejection_count == 1
+
 
 the workflow routes back to:
 WORKER → REVIEWER
 
 The Worker receives the Reviewer feedback and revises the draft.
-Second consecutive rejection
+Second Consecutive Rejection
 If:
 review_status == "rejected"
 rejection_count >= 2
+
 
 the workflow routes to:
 ESCALATE → END
@@ -190,11 +196,11 @@ The project contains deterministic tests that exercise both routing logic and th
 Run the complete test suite with:
 python -m pytest -q
 
-Current test result:
+Current Test Result
 8 passed
 
-Tested scenarios
-1. Approval path
+Tested Scenarios
+1. Approval Path
 Planner
   ↓
 Worker
@@ -205,7 +211,7 @@ Finish
   ↓
 END
 
-2. Rejection followed by approval
+2. Rejection Followed by Approval
 Planner
   ↓
 Worker
@@ -220,7 +226,7 @@ Finish
   ↓
 END
 
-3. Two consecutive rejections
+3. Two Consecutive Rejections
 Planner
   ↓
 Worker
@@ -235,15 +241,82 @@ Escalate
   ↓
 END
 
-4. Infinite-loop prevention
+4. Infinite-Loop Prevention
 The integration tests verify that after two consecutive rejections:
 - Planner runs once
 - Worker runs twice
 - Reviewer runs twice
 - The workflow terminates
 - Escalation is produced
+Runnable Demonstrations
+The repository includes two runnable demonstrations.
+Live LLM Workflow
+examples/live_run.py executes the production LLM-backed workflow.
+It demonstrates:
+Planner → Worker → Reviewer → Approval → Final Output
+
+Run:
+$env:PYTHONPATH = (Get-Location).Path
+python examples\live_run.py
+
+The live demonstration prints:
+- User task
+- Planner-generated execution plan
+- Worker draft
+- Reviewer decision
+- Reviewer feedback
+- Rejection count
+- Iteration count
+- Review history
+- Final output
+A successful live run produced:
+REVIEW STATUS:
+approved
+
+REJECTION COUNT:
+0
+
+ITERATIONS:
+1
+
+Two-Rejection Escalation Demonstration
+examples/rejection_demo.py provides a deterministic demonstration of the bounded rejection safeguard.
+It intentionally produces:
+Reviewer #1 → REJECTED
+        ↓
+Worker revision
+        ↓
+Reviewer #2 → REJECTED
+        ↓
+ESCALATE
+        ↓
+END
+
+Run:
+$env:PYTHONPATH = (Get-Location).Path
+python examples\rejection_demo.py
+
+The demonstration produces:
+Review 1: rejected
+Review 2: rejected
+
+REJECTION COUNT:
+2
+
+ITERATIONS:
+2
+
+FINAL OUTPUT:
+REVIEW FAILED
+
+The workflow reached two consecutive reviewer rejections
+without producing an approved draft.
+
+Review decisions recorded: 2
+
+This demonstration is deterministic and does not require an additional LLM API call.
 Project Structure
-multi-agent-research-workflow/
+agenticx-multi-agent-langgraph/
 │
 ├── app/
 │   ├── __init__.py
@@ -258,6 +331,11 @@ multi-agent-research-workflow/
 │   └── test_graph.py
 │
 ├── examples/
+│   ├── live_run.py
+│   └── rejection_demo.py
+│
+├── docs/
+│   └── architecture.md
 │
 ├── .env.example
 ├── .gitignore
@@ -272,17 +350,17 @@ Technology Stack
 - python-dotenv
 - Pytest
 Installation
-Clone the repository:
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+Clone the Repository
+git clone https://github.com/godswillmamus54-max/agenticx-multi-agent-langgraph.git
 cd agenticx-multi-agent-langgraph
 
-Create a virtual environment:
+Create a Virtual Environment
 python -m venv venv
 
-Activate it on Windows:
+Activate on Windows
 .\venv\Scripts\Activate.ps1
 
-Install dependencies:
+Install Dependencies
 pip install langgraph langchain langchain-openai python-dotenv pydantic pytest
 
 Environment Configuration
@@ -294,6 +372,7 @@ Never commit the .env file.
 A safe template is provided in:
 .env.example
 
+The repository's .gitignore excludes .env.
 Running the Tests
 Run:
 python -m pytest -q
@@ -323,14 +402,14 @@ This separation allows the workflow architecture to be tested independently from
 Design Decisions
 Why LangGraph?
 LangGraph provides explicit graph-based control flow and shared state, making the multi-agent workflow easier to reason about than an unconstrained chain of LLM calls.
-Why separate Planner, Worker, and Reviewer roles?
+Why Separate Planner, Worker, and Reviewer Roles?
 Each agent has a focused responsibility:
 Planner  → decides what should be done
 Worker   → performs the planned work
 Reviewer → evaluates the result
 
 This separation makes the workflow easier to inspect, test, and extend.
-Why use structured Reviewer output?
+Why Use Structured Reviewer Output?
 The Reviewer controls graph routing, so its decision needs to be machine-readable.
 The project uses a structured Pydantic model containing:
 status
@@ -340,7 +419,7 @@ The allowed status values are:
 approved
 rejected
 
-Why limit rejections?
+Why Limit Rejections?
 Without a bounded retry policy, a Reviewer → Worker loop could continue indefinitely.
 The two-rejection limit provides a deterministic termination condition.
 Reliability Properties
@@ -353,8 +432,11 @@ The workflow provides:
 - Review history
 - Terminal escalation
 - Deterministic integration tests
+- Reproducible demonstrations
+
 These properties make the workflow easier to inspect and reason about than an unrestricted agent loop.
 Future Improvements
+
 Potential future improvements include:
 - Persistent workflow checkpoints
 - Human approval before escalation
@@ -365,6 +447,7 @@ Potential future improvements include:
 - LangSmith tracing
 - API deployment with FastAPI
 - Additional failure-mode tests
+
 Project Status
 Current implementation:
 Core architecture        ✅
@@ -378,9 +461,9 @@ Two-rejection safeguard  ✅
 Integration tests        ✅
 8/8 tests passing        ✅
 Documentation            ✅
-Architecture diagram     ⏳
-Live LLM demo            ⏳
-GitHub publication      ⏳
+Architecture diagram     ✅
+Live LLM demo            ✅
+GitHub publication       ✅
 Internship submission    ⏳
 
 Internship Task
@@ -392,7 +475,16 @@ The implementation demonstrates:
 - Reviewer rejection handling
 - Two consecutive reviewer rejection handling
 - Deterministic workflow testing
+- LLM-backed production execution
+- Bounded agent-loop behavior
+- Runnable workflow demonstrations
+
 Author
 Ogheneochuko Godswill
 AI Automation Engineer
-AI Agents • Automation • LangGraph • APIs • Pythons
+AI Agents • Automation • LangGraph • APIs • Python
+GitHub:
+https://github.com/godswillmamus54-max
+
+License
+This project was created as an internship project and demonstration of multi-agent workflow engineering.
