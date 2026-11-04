@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.graph import build_workflow_graph
 
@@ -15,6 +16,17 @@ app = FastAPI(
     title="AgenticX Multi-Agent Research API",
     description="Planner, Worker and Reviewer workflow powered by LangGraph.",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # Compile the existing workflow once
